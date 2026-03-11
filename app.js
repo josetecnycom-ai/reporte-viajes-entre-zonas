@@ -1,7 +1,22 @@
-geotab.addin.reporteViajes = (api, state) => {
+geotab.addin.reporteViajes = () => {
     return {
         initialize(api, state, callback) {
-            // 1. Cargar Grupos, Dispositivos y Zonas al iniciar
+            console.log("Inicializando Add-in de Trayectos...");
+
+            // Función interna para llenar los selectores (la que faltaba)
+            const fillSelect = (id, items) => {
+                const select = document.getElementById(id);
+                if (!select) return;
+                select.innerHTML = ""; // Limpiar cargando...
+                items.forEach(item => {
+                    let option = document.createElement("option");
+                    option.value = item.id;
+                    option.text = item.name || item.description || item.id;
+                    select.appendChild(option);
+                });
+            };
+
+            // Llamadas a la API
             Promise.all([
                 api.call("Get", { typeName: "Group" }),
                 api.call("Get", { typeName: "Device" }),
@@ -11,29 +26,19 @@ geotab.addin.reporteViajes = (api, state) => {
                 fillSelect("deviceSelect", devices);
                 fillSelect("zoneStart", zones);
                 fillSelect("zoneEnd", zones);
+                
+                // IMPORTANTE: Esto quita el círculo de carga
                 callback();
+            }).catch(error => {
+                console.error("Error cargando datos de Geotab:", error);
+                callback(); // Cerramos el callback incluso si hay error para no bloquear
             });
         },
         focus(api, state) {
-            // Lógica cuando el usuario abre la pestaña
+            console.log("Add-in en foco");
         },
         blur(api, state) {
-            // Lógica cuando el usuario cierra la pestaña
+            console.log("Add-in fuera de foco");
         }
     };
 };
-
-// Función para calcular viajes (Lógica de emparejamiento)
-async function calculateTrips(api, deviceId, startZoneId, endZoneId) {
-    // Buscamos las excepciones de zona
-    const exceptions = await api.call("Get", {
-        typeName: "ExceptionEvent",
-        search: {
-            fromDate: document.getElementById("dateFrom").value,
-            deviceSearch: { id: deviceId }
-        }
-    });
-    
-    // Aquí implementaremos la resta de tiempos:
-    // (Llegada a Zona B) - (Salida de Zona A)
-}
