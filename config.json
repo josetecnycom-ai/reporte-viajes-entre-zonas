@@ -1,0 +1,12 @@
+{
+  "name": "Reporte de Trayectos Lanzadera",
+  "supportEmail": "tuemail@dominio.com",
+  "version": "1.0.0",
+  "items": [{
+    "name": "Reporte Viajes Base-Aeropuerto",
+    "url": "https://github.com/josetecnycom-ai/reporte-viajes-entre-zonas/index.html",
+    "path": "Activity/",
+    "menuName": "Reporte de Viajes",
+    "icon": "images/icon.svg"
+  }]
+}
