@@ -1,73 +1,92 @@
 geotab.addin.reporteViajes = () => {
-    let dataCache = [];
-
     return {
         initialize(api, state, callback) {
-            const fillSelect = (id, items) => {
-                const select = document.getElementById(id);
-                if (!select) return;
-                items.forEach(item => {
-                    let opt = new Option(item.name || item.description, item.id);
-                    select.add(opt);
+            // Configurar fechas por defecto: Hoy
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0);
+            document.getElementById("dateFrom").value = start.toISOString().slice(0, 16);
+            document.getElementById("dateTo").value = now.toISOString().slice(0, 16);
+
+            // Cargar selectores dinámicos
+            const fill = (id, items) => {
+                const el = document.getElementById(id);
+                el.innerHTML = "";
+                items.sort((a, b) => (a.name || "").localeCompare(b.name || "")).forEach(i => {
+                    el.add(new Option(i.name || i.description || i.id, i.id));
                 });
             };
 
-            // Carga inicial de datos
             Promise.all([
                 api.call("Get", { typeName: "Group" }),
                 api.call("Get", { typeName: "Device" }),
                 api.call("Get", { typeName: "Zone" })
             ]).then(([groups, devices, zones]) => {
-                fillSelect("groupSelect", groups);
-                fillSelect("deviceSelect", devices);
-                fillSelect("zoneA", zones);
-                fillSelect("zoneB", zones);
-                
-                // Set fechas por defecto (hoy)
-                document.getElementById("dateFrom").valueAsDate = new Date();
-                document.getElementById("dateTo").valueAsDate = new Date();
-                
+                fill("groupSelect", groups);
+                fill("deviceSelect", devices);
+                fill("zoneA", zones);
+                fill("zoneB", zones);
+                callback(); // Quita el spinner de carga
+            }).catch(e => {
+                console.error("Error en inicialización:", e);
                 callback();
             });
 
-            document.getElementById("btnGenerar").addEventListener("click", () => {
-                this.processData(api);
-            });
-
-            document.getElementById("btnExportar").addEventListener("click", () => {
-                this.exportToExcel();
-            });
+            document.getElementById("btnGenerar").onclick = () => this.process(api);
+            document.getElementById("btnExportar").onclick = () => this.export();
         },
 
-        async processData(api) {
-            const selectedDevices = Array.from(document.getElementById("deviceSelect").selectedOptions).map(o => ({ id: o.value }));
-            const zoneAId = document.getElementById("zoneA").value;
-            const zoneBId = document.getElementById("zoneB").value;
-            const fromDate = document.getElementById("dateFrom").value;
-            const toDate = document.getElementById("dateTo").value;
+        async process(api) {
+            const container = document.getElementById("tableContainer");
+            container.innerHTML = "Consultando datos en tiempo real...";
 
-            // Aquí llamaríamos a Get ExceptionEvent filtrando por zonaA y zonaB
-            // Por brevedad, simulamos la lógica de cálculo que mostraremos en pantalla:
-            
-            let html = `<table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Fecha</th><th>Vehículo</th><th>Trayecto</th><th>Duración Viaje</th><th>Estancia en Zona</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-            
-            // Lógica de ejemplo (esto se poblará con los resultados reales del api.call)
-            html += `<tr><td>${fromDate}</td><td>Furgoneta 1</td><td>A -> B</td><td>35 min</td><td>12 min</td></tr>`;
-            html += `</tbody></table>`;
-            
-            document.getElementById("tableContainer").innerHTML = html;
-        },
+            const deviceOptions = Array.from(document.getElementById("deviceSelect").selectedOptions);
+            const zAId = document.getElementById("zoneA").value;
+            const zBId = document.getElementById("zoneB").value;
+            const from = new Date(document.getElementById("dateFrom").value).toISOString();
+            const to = new Date(document.getElementById("dateTo").value).toISOString();
 
-        exportToExcel() {
-            const table = document.querySelector(".results-table");
-            const wb = XLSX.utils.table_to_book(table);
-            XLSX.writeFile(wb, `Reporte_Geotab_v1.1.0.xlsx`);
-        }
-    };
-};
+            if (deviceOptions.length === 0) {
+                alert("Selecciona al menos un vehículo");
+                return;
+            }
+
+            try {
+                let allRows = [];
+
+                for (let opt of deviceOptions) {
+                    const deviceId = opt.value;
+                    const name = opt.text;
+
+                    // Obtenemos eventos de zona para este vehículo
+                    const events = await api.call("Get", {
+                        typeName: "ExceptionEvent",
+                        search: {
+                            deviceSearch: { id: deviceId },
+                            fromDate: from,
+                            toDate: to,
+                            ruleSearch: { id: "RuleZoneStopId" } // Regla estándar de paradas en zona
+                        }
+                    });
+
+                    // Filtrar solo eventos que pertenezcan a las zonas A o B y ordenar por tiempo
+                    const zoneEvents = events
+                        .filter(e => e.zone && (e.zone.id === zAId || e.zone.id === zBId))
+                        .sort((a, b) => new Date(a.activeFrom) - new Date(b.activeFrom));
+
+                    // Lógica de emparejamiento para trayectos
+                    for (let i = 0; i < zoneEvents.length - 1; i++) {
+                        let actual = zoneEvents[i];
+                        let siguiente = zoneEvents[i+1];
+
+                        // Si sale de una zona y entra en la otra
+                        if (actual.zone.id !== siguiente.zone.id) {
+                            const salidaOrigen = new Date(actual.activeTo);
+                            const llegadaDestino = new Date(siguiente.activeFrom);
+                            
+                            const trayectoMs = llegadaDestino - salidaOrigen;
+                            const estanciaMs = new Date(actual.activeTo) - new Date(actual.activeFrom);
+
+                            if (trayectoMs > 0) {
+                                allRows.push({
+                                    fecha: salidaOrigen.toLocaleDateString(),
+                                    veh
