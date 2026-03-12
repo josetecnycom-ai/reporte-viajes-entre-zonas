@@ -1,6 +1,6 @@
 geotab.addin.reporteViajes = function(api, state) {
     
-    // Función auxiliar para convertir milisegundos a texto legible
+    // Función auxiliar para convertir milisegundos a texto
     const msToTime = (ms) => {
         let seconds = Math.floor((ms / 1000) % 60);
         let minutes = Math.floor((ms / (1000 * 60)) % 60);
@@ -11,9 +11,9 @@ geotab.addin.reporteViajes = function(api, state) {
     return {
         initialize: function(api, state, callback) {
             try {
-                // 1. Configurar fechas por defecto (Hoy) de forma segura
+                // Configurar fechas
                 const now = new Date();
-                now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Ajuste a hora local
+                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
                 const todayStr = now.toISOString().slice(0, 16);
                 
                 const dateFromEl = document.getElementById("dateFrom");
@@ -21,7 +21,7 @@ geotab.addin.reporteViajes = function(api, state) {
                 if (dateFromEl) dateFromEl.value = todayStr;
                 if (dateToEl) dateToEl.value = todayStr;
 
-                // 2. Función segura para llenar selectores
+                // Llenar selectores
                 const fill = (id, items) => {
                     const el = document.getElementById(id);
                     if (!el) return;
@@ -34,7 +34,6 @@ geotab.addin.reporteViajes = function(api, state) {
                     });
                 };
 
-                // 3. Carga de datos desde Geotab
                 Promise.all([
                     api.call("Get", { typeName: "Group" }),
                     api.call("Get", { typeName: "Device" }),
@@ -45,33 +44,27 @@ geotab.addin.reporteViajes = function(api, state) {
                     fill("zoneA", results[2]);
                     fill("zoneB", results[2]);
                     
-                    // 4. Asignar eventos a los botones
                     document.getElementById("btnGenerar").onclick = function() { processData(api); };
                     document.getElementById("btnExportar").onclick = function() { exportExcel(); };
                     
-                    callback(); // MUY IMPORTANTE: Libera la pantalla de carga
+                    callback();
                 }).catch(function(err) {
-                    console.error("Error al obtener datos de la API de Geotab:", err);
-                    callback(); // Libera la pantalla incluso si falla la API
+                    console.error("Error API:", err);
+                    callback();
                 });
 
             } catch (error) {
-                console.error("Error crítico en initialize:", error);
-                callback(); // Salvavidas: evita el bucle infinito de carga
+                console.error("Error init:", error);
+                callback();
             }
         },
-        focus: function(api, state) {
-            // Se ejecuta al hacer clic en la pestaña del add-in
-        },
-        blur: function(api, state) {
-            // Se ejecuta al cambiar a otra pestaña
-        }
+        focus: function(api, state) {},
+        blur: function(api, state) {}
     };
 
-    // --- LÓGICA PRINCIPAL DEL CÁLCULO ---
     async function processData(api) {
         const container = document.getElementById("tableContainer");
-        container.innerHTML = "<p>Consultando datos en tiempo real. Por favor espere...</p>";
+        container.innerHTML = "<p>Consultando datos... espere.</p>";
 
         try {
             const deviceSelect = document.getElementById("deviceSelect");
@@ -83,18 +76,16 @@ geotab.addin.reporteViajes = function(api, state) {
             const toDate = new Date(document.getElementById("dateTo").value).toISOString();
 
             if (deviceOptions.length === 0) {
-                container.innerHTML = "<p style='color:red;'>⚠️ Por favor, selecciona al menos un vehículo.</p>";
+                container.innerHTML = "<p style='color:red;'>⚠️ Selecciona un vehículo.</p>";
                 return;
             }
 
             let allRows = [];
 
-            // Consultar vehículo por vehículo
             for (let opt of deviceOptions) {
                 const deviceId = opt.value;
                 const name = opt.text;
 
-                // Obtener eventos
                 const events = await api.call("Get", {
                     typeName: "ExceptionEvent",
                     search: {
@@ -104,12 +95,10 @@ geotab.addin.reporteViajes = function(api, state) {
                     }
                 });
 
-                // Filtrar eventos que tengan zona y que sean la Zona A o B
                 const zoneEvents = events
                     .filter(e => e.zone && (e.zone.id === zAId || e.zone.id === zBId))
                     .sort((a, b) => new Date(a.activeFrom) - new Date(b.activeFrom));
 
-                // Emparejar salidas y llegadas
                 for (let i = 0; i < zoneEvents.length - 1; i++) {
                     let actual = zoneEvents[i];
                     let siguiente = zoneEvents[i+1];
@@ -117,7 +106,6 @@ geotab.addin.reporteViajes = function(api, state) {
                     if (actual.zone.id !== siguiente.zone.id) {
                         const salidaOrigen = new Date(actual.activeTo);
                         const llegadaDestino = new Date(siguiente.activeFrom);
-                        
                         const trayectoMs = llegadaDestino - salidaOrigen;
                         const estanciaMs = new Date(actual.activeTo) - new Date(actual.activeFrom);
 
@@ -135,54 +123,35 @@ geotab.addin.reporteViajes = function(api, state) {
                     }
                 }
             }
-
             renderTable(allRows);
-
         } catch (err) {
-            console.error("Error procesando trayectos:", err);
-            container.innerHTML = `<p style="color:red;">Error al procesar los datos: ${err.message}</p>`;
+            console.error("Error procesos:", err);
+            container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
         }
     }
 
-    // --- RENDERIZADO VISUAL ---
     function renderTable(rows) {
         if(rows.length === 0) {
-            document.getElementById("tableContainer").innerHTML = "<p>No se encontraron trayectos entre esas zonas para los vehículos y fechas seleccionados.</p>";
+            document.getElementById("tableContainer").innerHTML = "<p>No hay trayectos.</p>";
             return;
         }
-
         let html = `
             <table class="results-table" id="tablaFinal">
                 <thead>
-                    <tr>
-                        <th>Fecha</th><th>Hora Salida</th><th>Vehículo</th><th>Origen</th><th>Destino</th><th>Tiempo Ruta</th><th>Estancia en Origen</th>
-                    </tr>
+                    <tr><th>Fecha</th><th>Salida</th><th>Vehículo</th><th>Origen</th><th>Destino</th><th>Tiempo Ruta</th><th>Estancia</th></tr>
                 </thead>
                 <tbody>
-                    ${rows.map(r => `
-                        <tr>
-                            <td>${r.fecha}</td><td>${r.horaSalida}</td><td>${r.vehiculo}</td><td>${r.origen}</td>
-                            <td>${r.destino}</td><td>${r.duracion}</td><td>${r.estancia}</td>
-                        </tr>
-                    `).join('')}
+                    ${rows.map(r => `<tr><td>${r.fecha}</td><td>${r.horaSalida}</td><td>${r.vehiculo}</td><td>${r.origen}</td><td>${r.destino}</td><td>${r.duracion}</td><td>${r.estancia}</td></tr>`).join('')}
                 </tbody>
             </table>`;
         document.getElementById("tableContainer").innerHTML = html;
     }
 
-    // --- EXPORTACIÓN A EXCEL ---
     function exportExcel() {
         const table = document.getElementById("tablaFinal");
-        if (!table) {
-            alert("Primero debes generar el informe para poder descargarlo.");
-            return;
-        }
-        if (typeof XLSX === 'undefined') {
-            alert("Error: La librería xlsx.full.min.js no se ha cargado correctamente.");
-            return;
-        }
-        
+        if (!table) return alert("Genera el informe primero.");
+        if (typeof XLSX === 'undefined') return alert("Falta librería Excel.");
         const wb = XLSX.utils.table_to_book(table);
         XLSX.writeFile(wb, `Reporte_Lanzadera.xlsx`);
     }
-};
+}; // <-- ¡Asegúrate de copiar hasta aquí!
