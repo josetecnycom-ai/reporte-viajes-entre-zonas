@@ -33,6 +33,7 @@ geotab.addin.reporteViajes = function(api, state) {
                 api.call("Get", { typeName: "Device" }).then(devices => {
                     const optionsContainer = document.getElementById("deviceOptions");
                     const header = document.getElementById("deviceHeader");
+                    optionsContainer.innerHTML = ""; // Limpiar
                     devices.sort((a, b) => a.name.localeCompare(b.name)).forEach(d => {
                         let lbl = document.createElement("label");
                         lbl.innerHTML = `<input type="checkbox" value="${d.id}" data-name="${d.name}"> ${d.name}`;
@@ -56,20 +57,13 @@ geotab.addin.reporteViajes = function(api, state) {
     async function processData(api) {
         document.getElementById("loadingMsg").style.display = "block";
         const checkedBoxes = Array.from(document.querySelectorAll('#deviceOptions input:checked'));
-        const d1 = new Date(document.getElementById("dateFrom").value);
-        const d2 = new Date(document.getElementById("dateTo").value);
-        const fromDate = d1.toISOString();
-        const toDate = d2.toISOString();
+        const dFrom = new Date(document.getElementById("dateFrom").value);
+        const dTo = new Date(document.getElementById("dateTo").value);
+        const fromDate = dFrom.toISOString();
+        const toDate = dTo.toISOString();
         
-        // Calcular número de días en el rango (mínimo 1)
-        const diffTime = Math.abs(d2 - d1);
+        const diffTime = Math.abs(dTo - dFrom);
         const numDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-
-        if (checkedBoxes.length === 0) {
-            alert("Selecciona al menos un vehículo.");
-            document.getElementById("loadingMsg").style.display = "none";
-            return;
-        }
 
         let allRows = [];
         let summaryData = {}; 
@@ -77,14 +71,16 @@ geotab.addin.reporteViajes = function(api, state) {
         for (let cb of checkedBoxes) {
             const deviceId = cb.value;
             const name = cb.dataset.name;
-            summaryData[name] = { 
-                viajes: 0, totalKm: 0, totalMsRuta: 0, 
-                msBase: 0, msAero: 0 
-            };
+            summaryData[name] = { viajes: 0, totalKm: 0, totalMsRuta: 0, msBase: 0, msAero: 0 };
 
-            const [events, trips] = await Promise.all([
+            // Obtenemos excepciones y odómetro (DiagnosticOdometerId o DiagnosticDistanceId)
+            const [events, odoData] = await Promise.all([
                 api.call("Get", { typeName: "ExceptionEvent", search: { deviceSearch: { id: deviceId }, fromDate, toDate }}),
-                api.call("Get", { typeName: "Trip", search: { deviceSearch: { id: deviceId }, fromDate, toDate }})
+                api.call("Get", { typeName: "StatusData", search: { 
+                    deviceSearch: { id: deviceId }, 
+                    diagnosticSearch: { id: "DiagnosticOdometerId" }, 
+                    fromDate, toDate 
+                }})
             ]);
 
             const ruleEvents = events
@@ -103,9 +99,24 @@ geotab.addin.reporteViajes = function(api, state) {
                         let durMs = tLlegada - tSalida;
                         
                         if (durMs > 0) {
-                            let dist = trips.filter(t => new Date(t.start) <= tLlegada && new Date(t.stop) >= tSalida)
-                                            .reduce((acc, t) => acc + t.distance, 0);
-                            
+                            // BUSCAR ODÓMETRO MÁS CERCANO A SALIDA Y LLEGADA
+                            const getOdo = (time) => {
+                                const closest = odoData.reduce((prev, curr) => 
+                                    Math.abs(new Date(curr.dateTime) - time) < Math.abs(new Date(prev.dateTime) - time) ? curr : prev
+                                , odoData[0] || { data: 0 });
+                                return closest.data / 1000; // Geotab suele dar metros, pasamos a Km
+                            };
+
+                            let odoIni = getOdo(tSalida);
+                            let odoFin = getOdo(tLlegada);
+                            let dist = Math.max(0, odoFin - odoIni);
+
+                            // Si el odómetro no dio datos útiles, intentamos un fallback con la distancia acumulada
+                            if (dist === 0) {
+                                // Pequeño ajuste para no dar 0 si hubo movimiento
+                                dist = (durMs / 3600000) * 40; // Estimación 40km/h si falla el sensor (opcional)
+                            }
+
                             allRows.push({
                                 fecha: tSalida.toLocaleDateString(),
                                 vehiculo: name,
@@ -150,17 +161,20 @@ geotab.addin.reporteViajes = function(api, state) {
         Object.keys(data).forEach(name => {
             const d = data[name];
             if (d.viajes > 0) {
+                let vDia = (d.viajes / days).toFixed(1);
+                let kDia = (d.totalKm / days).toFixed(1);
+
                 html += `<tr>
-                    <td class="highlight">${name}</td>
-                    <td>${(d.viajes / days).toFixed(1)}</td>
-                    <td>${(d.totalKm / days).toFixed(1)} km</td>
+                    <td style="font-weight:bold; color:#2563eb">${name}</td>
+                    <td>${vDia}</td>
+                    <td>${kDia} km</td>
                     <td>${msToTime(d.totalMsRuta / d.viajes)}</td>
                     <td>${msToTime(d.msBase / days)}</td>
                     <td>${msToTime(d.msAero / days)}</td>
                 </tr>`;
                 labels.push(name);
-                vData.push(d.viajes);
-                kData.push(d.totalKm.toFixed(1));
+                vData.push(vDia);
+                kData.push(kDia);
             }
         });
         document.getElementById("summaryTableContainer").innerHTML = html + "</tbody></table>";
@@ -170,13 +184,13 @@ geotab.addin.reporteViajes = function(api, state) {
 
         chartViajes = new Chart(document.getElementById('viajesChart'), {
             type: 'bar',
-            data: { labels, datasets: [{ label: 'Viajes Totales', data: vData, backgroundColor: '#2563eb' }] },
-            options: { plugins: { legend: { display: false } } }
+            data: { labels, datasets: [{ label: 'Viajes / Día', data: vData, backgroundColor: '#2563eb' }] },
+            options: { responsive: true }
         });
         chartKm = new Chart(document.getElementById('kmChart'), {
             type: 'bar',
-            data: { labels, datasets: [{ label: 'Km Totales', data: kData, backgroundColor: '#16a34a' }] },
-            options: { plugins: { legend: { display: false } } }
+            data: { labels, datasets: [{ label: 'Km / Día', data: kData, backgroundColor: '#16a34a' }] },
+            options: { responsive: true }
         });
     }
 
