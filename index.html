@@ -30,14 +30,14 @@
         .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; }
         .card h3 { margin-top: 0; color: #1e293b; font-size: 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 15px; }
         
-        .stats-container { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+        .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th { background: #f8fafc; color: #64748b; padding: 12px; text-align: left; border-bottom: 2px solid #edf2f7; text-transform: uppercase; letter-spacing: 0.5px; }
         td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
         .highlight { font-weight: bold; color: #2563eb; }
 
-        #loadingMsg { padding: 15px; background: #dbeafe; color: #1e40af; border-radius: 8px; margin-top: 20px; display: none; text-align: center; }
+        #loadingMsg { padding: 15px; background: #dbeafe; color: #1e40af; border-radius: 8px; margin-top: 20px; display: none; text-align: center; font-weight:bold; }
     </style>
 </head>
 <body>
@@ -67,29 +67,34 @@
             <button id="btnExportar">Exportar Informe Excel</button>
         </div>
 
-        <div id="loadingMsg">🔄 Procesando datos históricos de Geotab... calculando promedios diarios...</div>
+        <div id="loadingMsg">🔄 Procesando datos históricos... filtrando rutas y calculando métricas...</div>
 
         <div class="dashboard" id="dashboardPanel" style="display:none;">
             <div class="card">
-                <h3>Resumen de Operativa Diaria (Promedios)</h3>
+                <h3>Resumen de Operativa Diaria (Promedios y Totales)</h3>
                 <div id="summaryTableContainer" style="overflow-x: auto;"></div>
             </div>
             
+            <div class="card">
+                <h3>Actividad por Horas del Día (Comparativa de Viajes)</h3>
+                <canvas id="hourlyChart" height="80"></canvas>
+            </div>
+
             <div class="stats-container">
                 <div class="card">
-                    <h3>Comparativa: Viajes Totales</h3>
+                    <h3>Comparativa: Viajes por Día</h3>
                     <canvas id="viajesChart" height="150"></canvas>
                 </div>
                 <div class="card">
-                    <h3>Comparativa: Km Recorridos</h3>
+                    <h3>Comparativa: Km por Día</h3>
                     <canvas id="kmChart" height="150"></canvas>
                 </div>
             </div>
         </div>
 
         <div class="card" id="detailPanel" style="display:none; margin-top:25px;">
-            <h3>Registro de Trayectos (Detalle)</h3>
-            <div id="tableContainer"></div>
+            <h3>Registro de Trayectos Válidos (Detalle)</h3>
+            <div id="tableContainer" style="max-height: 400px; overflow-y: auto;"></div>
         </div>
     </div>
     <script src="app.js"></script>
