@@ -25,37 +25,28 @@
         #btnGenerar:hover { background: #1d4ed8; transform: translateY(-1px); }
         #btnExportar { background: #16a34a; color: white; }
         
-       /* Layout del Dashboard - Ahora más espacioso */
-.dashboard { 
-    display: flex; 
-    flex-direction: column; 
-    gap: 30px; 
-    margin-top: 25px; 
+     /* Contenedor específico para que el gráfico no crezca al infinito */
+.chart-wrapper {
+    position: relative;
+    height: 400px; /* Aquí fijamos la altura de los gráficos */
+    width: 100%;
+    margin-bottom: 20px;
 }
 
-.card { 
-    background: #fff; 
-    border-radius: 12px; 
-    padding: 25px; 
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
-    border: 1px solid #e5e7eb; 
+/* Ajuste de las tarjetas para que no se amontonen */
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Contenedor de gráficos: Uno debajo de otro o en rejilla grande */
-.stats-grid { 
-    display: grid; 
-    grid-template-columns: 1fr; /* Uno por fila para máximo tamaño */
-    gap: 25px; 
-}
-
-@media (min-width: 1200px) {
-    .stats-grid { grid-template-columns: 1fr 1fr; } /* Dos por fila en pantallas grandes */
-}
-
-/* Forzar tamaño de los canvas */
-canvas { 
-    width: 100% !important; 
-    max-height: 450px; /* Gráficos mucho más altos */
+canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
         
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
