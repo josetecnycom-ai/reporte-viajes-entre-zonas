@@ -25,12 +25,38 @@
         #btnGenerar:hover { background: #1d4ed8; transform: translateY(-1px); }
         #btnExportar { background: #16a34a; color: white; }
         
-        /* Dashboard Layout */
-        .dashboard { display: flex; flex-direction: column; gap: 25px; margin-top: 25px; }
-        .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; }
-        .card h3 { margin-top: 0; color: #1e293b; font-size: 18px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 15px; }
-        
-        .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+       /* Layout del Dashboard - Ahora más espacioso */
+.dashboard { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 30px; 
+    margin-top: 25px; 
+}
+
+.card { 
+    background: #fff; 
+    border-radius: 12px; 
+    padding: 25px; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+    border: 1px solid #e5e7eb; 
+}
+
+/* Contenedor de gráficos: Uno debajo de otro o en rejilla grande */
+.stats-grid { 
+    display: grid; 
+    grid-template-columns: 1fr; /* Uno por fila para máximo tamaño */
+    gap: 25px; 
+}
+
+@media (min-width: 1200px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; } /* Dos por fila en pantallas grandes */
+}
+
+/* Forzar tamaño de los canvas */
+canvas { 
+    width: 100% !important; 
+    max-height: 450px; /* Gráficos mucho más altos */
+}
         
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th { background: #f8fafc; color: #64748b; padding: 12px; text-align: left; border-bottom: 2px solid #edf2f7; text-transform: uppercase; letter-spacing: 0.5px; }
