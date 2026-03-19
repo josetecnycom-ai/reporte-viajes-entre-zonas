@@ -4,7 +4,7 @@ geotab.addin.reporteViajes = function(api, state) {
     let chartKm = null;
     let chartHourly = null;
 
-    // Paleta de colores para el gráfico de líneas de diferentes vehículos
+    // Paleta de colores para diferenciar las furgonetas en el gráfico de líneas
     const colorPalette = ['#2563eb', '#16a34a', '#dc2626', '#ca8a04', '#9333ea', '#0891b2', '#ea580c', '#475569'];
 
     const msToTime = (ms) => {
@@ -24,11 +24,24 @@ geotab.addin.reporteViajes = function(api, state) {
     return {
         initialize: function(api, state, callback) {
             try {
-                const now = new Date();
-                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                document.getElementById("dateFrom").value = now.toISOString().slice(0, 16);
-                document.getElementById("dateTo").value = now.toISOString().slice(0, 16);
+                // LÓGICA PARA CARGAR "EL DÍA DE AYER" POR DEFECTO
+                const formatLocal = (d) => {
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
 
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1); // Restamos un día a hoy
+                
+                // Desde las 00:00 de ayer
+                const dFromDefault = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0);
+                // Hasta las 23:59 de ayer
+                const dToDefault = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59);
+
+                document.getElementById("dateFrom").value = formatLocal(dFromDefault);
+                document.getElementById("dateTo").value = formatLocal(dToDefault);
+
+                // Selector de dispositivos
                 document.addEventListener('click', (e) => {
                     const ms = document.getElementById('ms-devices');
                     if (ms && !ms.contains(e.target)) ms.classList.remove('open');
@@ -37,7 +50,7 @@ geotab.addin.reporteViajes = function(api, state) {
                 api.call("Get", { typeName: "Device" }).then(devices => {
                     const optionsContainer = document.getElementById("deviceOptions");
                     const header = document.getElementById("deviceHeader");
-                    optionsContainer.innerHTML = "";
+                    optionsContainer.innerHTML = ""; 
                     devices.sort((a, b) => a.name.localeCompare(b.name)).forEach(d => {
                         let lbl = document.createElement("label");
                         lbl.innerHTML = `<input type="checkbox" value="${d.id}" data-name="${d.name}"> ${d.name}`;
@@ -75,7 +88,7 @@ geotab.addin.reporteViajes = function(api, state) {
         for (let cb of checkedBoxes) {
             const deviceId = cb.value;
             const name = cb.dataset.name;
-            // Añadimos array para contar viajes en las 24 horas del día
+            // Estructura: viajesPorHora es un array de 24 posiciones (0 a 23)
             summaryData[name] = { viajes: 0, totalKm: 0, totalMsRuta: 0, msBase: 0, msAero: 0, viajesPorHora: new Array(24).fill(0) };
 
             const [events, odoData] = await Promise.all([
@@ -105,9 +118,8 @@ geotab.addin.reporteViajes = function(api, state) {
                         let origenEsBase = lastSalida.rule.id === ruleIDs.salidaBase;
                         let destinoEsBase = e.rule.id === ruleIDs.entradaBase;
 
-                        // NUEVA REGLA: Solo contabilizar si el Origen es DISTINTO al Destino
+                        // Solo contamos viajes reales (Origen distinto de Destino)
                         if (durMs > 0 && origenEsBase !== destinoEsBase) {
-                            
                             const getOdo = (time) => {
                                 const closest = odoData.reduce((prev, curr) => 
                                     Math.abs(new Date(curr.dateTime) - time) < Math.abs(new Date(prev.dateTime) - time) ? curr : prev
@@ -135,11 +147,9 @@ geotab.addin.reporteViajes = function(api, state) {
                             summaryData[name].totalKm += dist;
                             summaryData[name].totalMsRuta += durMs;
                             
-                            // Registrar la hora del viaje (de 0 a 23)
+                            // Sumar un viaje en la hora correspondiente (ej. 14:30 suma en el índice 14)
                             summaryData[name].viajesPorHora[tSalida.getHours()]++;
                         }
-                        
-                        // Independientemente de si fue válido o no, reseteamos la salida
                         lastSalida = null;
                     }
                 }
@@ -163,7 +173,6 @@ geotab.addin.reporteViajes = function(api, state) {
     }
 
     function renderDashboard(data, days) {
-        // Nueva columna añadida: Tiempo Total Conducción
         let html = `<table id="tablaResumen"><thead><tr>
             <th>Vehículo</th><th>Viajes Tot.</th><th>Km Totales</th><th>Tiempo Tot. Conducción</th><th>Viajes/Día</th><th>Km/Día</th><th>Media Trayecto</th>
             <th>Permanencia Base/Día</th><th>Permanencia Aero/Día</th></tr></thead><tbody>`;
@@ -194,38 +203,48 @@ geotab.addin.reporteViajes = function(api, state) {
                 vData.push(vDia);
                 kData.push(kDia);
 
-                // Preparar datos para el gráfico de horas
+                // CONFIGURACIÓN DEL GRÁFICO DE LÍNEAS POR HORAS
                 hourlyDatasets.push({
                     label: name,
                     data: d.viajesPorHora,
                     borderColor: colorPalette[colorIndex % colorPalette.length],
-                    backgroundColor: colorPalette[colorIndex % colorPalette.length] + '33', // Color transparente
-                    tension: 0.3, // Líneas curvas suaves
-                    fill: true
+                    backgroundColor: colorPalette[colorIndex % colorPalette.length] + '33', // Transparencia
+                    borderWidth: 2,
+                    tension: 0.3, // Líneas curvas
+                    fill: false // Cambiado a false para que no se superpongan demasiado los rellenos
                 });
                 colorIndex++;
             }
         });
         document.getElementById("summaryTableContainer").innerHTML = html + "</tbody></table>";
         
-        // Destruir gráficos anteriores si existen
+        // Destruimos gráficos anteriores para evitar solapamientos
         if (chartViajes) chartViajes.destroy();
         if (chartKm) chartKm.destroy();
         if (chartHourly) chartHourly.destroy();
 
-        // 1. Gráfico de Actividad por Horas
+        // RENDERIZAR GRÁFICO POR HORAS
         const hoursLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
         chartHourly = new Chart(document.getElementById('hourlyChart'), {
             type: 'line',
             data: { labels: hoursLabels, datasets: hourlyDatasets },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { stepSize: 1 },
+                        title: { display: true, text: 'Nº de Viajes' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Hora del Día' }
+                    }
+                },
                 plugins: { legend: { position: 'top' } }
             }
         });
 
-        // 2. Gráficos de Barras (Diarios)
+        // Gráficos Diarios (Barras)
         chartViajes = new Chart(document.getElementById('viajesChart'), {
             type: 'bar',
             data: { labels, datasets: [{ label: 'Viajes / Día', data: vData, backgroundColor: '#2563eb' }] },
@@ -244,7 +263,7 @@ geotab.addin.reporteViajes = function(api, state) {
         document.getElementById("tableContainer").innerHTML = html + "</tbody></table>";
     }
 
-    // EXPORTACIÓN EXCEL MULTI-HOJA
+    // EXPORTACIÓN A EXCEL EN DOS PESTAÑAS
     function exportExcel() {
         if (typeof XLSX === 'undefined') return alert("Falta librería Excel.");
         
@@ -253,18 +272,13 @@ geotab.addin.reporteViajes = function(api, state) {
         
         if (!tableResumen || !tableDetalle) return alert("Genera el informe primero.");
 
-        // Creamos un libro de Excel vacío
         const wb = XLSX.utils.book_new();
-        
-        // Convertimos las tablas HTML a hojas de cálculo
         const wsResumen = XLSX.utils.table_to_sheet(tableResumen);
         const wsDetalle = XLSX.utils.table_to_sheet(tableDetalle);
         
-        // Añadimos las hojas al libro
         XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Global");
         XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle Trayectos");
         
-        // Descargamos el archivo
         XLSX.writeFile(wb, "Reporte_K10_Lanzaderas_Completo.xlsx");
     }
 };
