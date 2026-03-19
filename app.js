@@ -218,11 +218,19 @@ geotab.addin.reporteViajes = function(api, state) {
         if (chartHourly) chartHourly.destroy();
 
         // CONFIGURACIÓN DE GRÁFICOS GRANDES
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false, // Permite que el CSS controle la altura
-            plugins: { legend: { display: true, labels: { boxWidth: 20, font: { size: 12 } } } }
-        };
+        // ... dentro de renderDashboard ...
+
+const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false, // El gráfico llenará los 400px que pusimos en el CSS
+    plugins: { 
+        legend: { 
+            display: true, 
+            position: 'top',
+            labels: { boxWidth: 15, font: { size: 11 } } 
+        } 
+    }
+};
 
         const hoursLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
         chartHourly = new Chart(document.getElementById('hourlyChart'), {
