@@ -1,0 +1,126 @@
+/* style.css */
+#lanzaderas-app {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --secondary: #10b981;
+    --secondary-hover: #059669;
+    --bg-color: #f8fafc;
+    --card-bg: #ffffff;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.5;
+    padding: 20px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+#lanzaderas-app * { box-sizing: border-box; }
+
+#lanzaderas-app .content-wrapper { max-width: 1400px; margin: 0 auto; }
+
+#lanzaderas-app .header { 
+    background: var(--card-bg); 
+    padding: 1.5rem 2rem; 
+    border-radius: var(--radius-lg); 
+    box-shadow: var(--shadow-md); 
+    margin-bottom: 2rem; 
+}
+
+#lanzaderas-app .header-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+#lanzaderas-app h2 { color: var(--text-main); font-weight: 600; font-size: 1.5rem; margin-top: 0; }
+#lanzaderas-app h3 { color: var(--text-main); font-weight: 600; font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-top: 0; margin-bottom: 1rem; }
+
+#lanzaderas-app .controls { 
+    display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end;
+    background: #f1f5f9; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);
+}
+
+#lanzaderas-app .control-group { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 200px; }
+
+#lanzaderas-app label.control-label { 
+    font-weight: 500; font-size: 0.85rem; color: var(--text-main); 
+    text-transform: uppercase; letter-spacing: 0.025em; margin: 0; 
+}
+
+#lanzaderas-app input[type="datetime-local"] { 
+    padding: 0.6rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); 
+    font-size: 0.9rem; font-family: 'Inter', sans-serif; background: #fff; height: 40px;
+}
+#lanzaderas-app input[type="datetime-local"]:focus { outline: none; border-color: var(--primary); }
+
+#lanzaderas-app .ms-container { position: relative; width: 100%; }
+#lanzaderas-app .ms-header { 
+    background: #fff; border: 1px solid var(--border-color); padding: 0.6rem; 
+    border-radius: var(--radius-md); cursor: pointer; height: 40px; font-size: 0.9rem; 
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center;
+}
+#lanzaderas-app .ms-header:hover { border-color: var(--primary); }
+#lanzaderas-app .ms-options { 
+    position: absolute; top: 100%; left: 0; right: 0; background: #fff; 
+    border: 1px solid var(--border-color); border-radius: var(--radius-md); max-height: 250px; 
+    overflow-y: auto; z-index: 1000; display: none; padding: 0.5rem; box-shadow: var(--shadow-lg); font-size: 0.9rem;
+}
+#lanzaderas-app .ms-container.open .ms-options { display: block; }
+#lanzaderas-app .ms-options label { 
+    display: flex; align-items: center; padding: 0.5rem; font-weight: normal; 
+    cursor: pointer; border-radius: 4px; 
+}
+#lanzaderas-app .ms-options label:hover { background: #f1f5f9; }
+#lanzaderas-app .ms-options input[type="checkbox"] { margin-right: 0.75rem; width: 16px; height: 16px; margin: 0 0.75rem 0 0; }
+
+#lanzaderas-app .btn {
+    height: 40px; padding: 0 1.25rem; border-radius: var(--radius-md); font-size: 0.9rem;
+    font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;
+}
+#lanzaderas-app .btn-primary { background: var(--primary); color: #fff; }
+#lanzaderas-app .btn-primary:hover { background: var(--primary-hover); }
+#lanzaderas-app .btn-success { background: var(--secondary); color: #fff; }
+#lanzaderas-app .btn-success:hover { background: var(--secondary-hover); }
+
+#lanzaderas-app .dashboard { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1.5rem;}
+
+#lanzaderas-app .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
+
+#lanzaderas-app .kpi-card {
+    background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-lg); 
+    box-shadow: var(--shadow-md); display: flex; flex-direction: column; border-top: 4px solid var(--primary);
+}
+#lanzaderas-app .kpi-title { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem; }
+#lanzaderas-app .kpi-value { font-size: 1.75rem; font-weight: 700; color: var(--text-main); line-height: 1.2; }
+#lanzaderas-app .kpi-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+#lanzaderas-app .card { background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); width: 100%; }
+
+#lanzaderas-app .chart-wrapper { position: relative; width: 100%; margin-top: 1rem; display: block; }
+
+#lanzaderas-app .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+#lanzaderas-app .table-responsive { width: 100%; overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+#lanzaderas-app table { width: 100%; border-collapse: collapse; background: #fff; font-size: 0.85rem; margin: 0; }
+#lanzaderas-app th, #lanzaderas-app td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+#lanzaderas-app th { background: #f8fafc; font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; position: sticky; top: 0; z-index: 10; }
+#lanzaderas-app tr:hover { background: #f1f5f9; }
+#lanzaderas-app tr:last-child td { border-bottom: none; }
+
+#lanzaderas-app #loadingMsg { 
+    display: none; padding: 1rem; background: #eff6ff; border-left: 4px solid var(--primary); 
+    border-radius: 0 var(--radius-md) var(--radius-md) 0; color: #1e3a8a; font-weight: 500; margin-top: 1rem;
+}
+
+@media (max-width: 1024px) { #lanzaderas-app .grid-2 { grid-template-columns: 1fr; } }
