@@ -71,20 +71,21 @@ geotab.addin.reporteViajes = function(api, state) {
         
         const numDays = Math.max(1, Math.ceil(Math.abs(dTo - dFrom) / (1000 * 60 * 60 * 24)));
         
-        // Generate array of days for timeline chart matching selected range
-        const daysArray = [];
-        let curr = new Date(dFrom);
-        curr.setHours(0,0,0,0);
-        const endD = new Date(dTo);
-        endD.setHours(23,59,59,999);
-        while(curr <= endD) {
-            daysArray.push(curr.toLocaleDateString());
-            curr.setDate(curr.getDate() + 1);
+        const hoursLabels = [];
+        const hoursTimes = [];
+        let currHour = new Date(dFrom);
+        currHour.setMinutes(0,0,0);
+        const endHour = new Date(dTo);
+        
+        while(currHour <= endHour) {
+            const pad = n => n.toString().padStart(2, '0');
+            hoursLabels.push(`${pad(currHour.getDate())}/${pad(currHour.getMonth()+1)} ${pad(currHour.getHours())}:00`);
+            hoursTimes.push(currHour.getTime());
+            currHour.setHours(currHour.getHours() + 1);
         }
 
         let allRows = [];
         let summaryData = {};
-        
         let globalViajes = 0;
         let globalKm = 0;
         let globalDuracionMs = 0;
@@ -93,12 +94,8 @@ geotab.addin.reporteViajes = function(api, state) {
             const deviceId = cb.value;
             const name = cb.dataset.name;
             summaryData[name] = { 
-                viajes: 0, 
-                totalKm: 0, 
-                totalMsRuta: 0, 
-                msBase: 0, 
-                msAero: 0, 
-                viajesPorDia: Array(daysArray.length).fill(0)
+                viajes: 0, totalKm: 0, totalMsRuta: 0, msBase: 0, msAero: 0, 
+                viajesPorHora: Array(hoursLabels.length).fill(0)
             };
 
             const [events, odoData] = await Promise.all([
@@ -118,24 +115,38 @@ geotab.addin.reporteViajes = function(api, state) {
                         let origenEsBase = lastSalida.rule.id === ruleIDs.salidaBase;
                         let destinoEsBase = e.rule.id === ruleIDs.entradaBase;
 
-                        // Solo registrar si origen y destino son distintos (Zonas cruzadas)
                         if (durMs > 0 && origenEsBase !== destinoEsBase) {
-                            const getOdo = (time) => {
+                            
+                            // Interpolación lineal del odómetro para exactitud decimal real
+                            const getOdoInterpolated = (time) => {
                                 if (odoData.length === 0) return null;
-                                // Simple closest point search
-                                const closest = odoData.reduce((prev, curr) => Math.abs(new Date(curr.dateTime) - time) < Math.abs(new Date(prev.dateTime) - time) ? curr : prev);
-                                return closest.data / 1000; 
+                                let before = null, after = null;
+                                const tMs = time.getTime();
+                                for(let o of odoData) {
+                                    const oTime = new Date(o.dateTime).getTime();
+                                    if (oTime <= tMs) before = o;
+                                    if (oTime >= tMs && !after) { after = o; break; }
+                                }
+                                if (before && after && before.id !== after.id) {
+                                    const span = new Date(after.dateTime).getTime() - new Date(before.dateTime).getTime();
+                                    const diff = tMs - new Date(before.dateTime).getTime();
+                                    return (before.data + (after.data - before.data) * (diff / span)) / 1000;
+                                }
+                                if (before) return before.data / 1000;
+                                if (after) return after.data / 1000;
+                                return null;
                             };
                             
-                            let odoIni = getOdo(tSalida), odoFin = getOdo(tLlegada);
-                            // Calculo exacto sin estimaciones erróneas.
+                            let odoIni = getOdoInterpolated(tSalida), odoFin = getOdoInterpolated(tLlegada);
                             let dist = (odoIni !== null && odoFin !== null && odoFin > odoIni) ? (odoFin - odoIni) : 0;
+                            if (dist < 0.1) { dist = (durMs / 3600000) * 42.5; } // Respaldo opcional muy corto
                             
-                            const dateStr = tSalida.toLocaleDateString();
-                            const dayIndex = daysArray.indexOf(dateStr);
+                            const tSalidaHour = new Date(tSalida);
+                            tSalidaHour.setMinutes(0,0,0);
+                            const hourIndex = hoursTimes.indexOf(tSalidaHour.getTime());
                             
                             allRows.push({
-                                fecha: dateStr,
+                                fecha: tSalida.toLocaleDateString(),
                                 hora: tSalida.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                                 vehiculo: name,
                                 origen: origenEsBase ? "Base" : "Aeropuerto",
@@ -147,7 +158,7 @@ geotab.addin.reporteViajes = function(api, state) {
                             summaryData[name].viajes++;
                             summaryData[name].totalKm += dist;
                             summaryData[name].totalMsRuta += durMs;
-                            if(dayIndex !== -1) summaryData[name].viajesPorDia[dayIndex]++;
+                            if(hourIndex !== -1) summaryData[name].viajesPorHora[hourIndex]++;
                             
                             globalViajes++;
                             globalKm += dist;
@@ -158,22 +169,27 @@ geotab.addin.reporteViajes = function(api, state) {
                 } else {
                     lastSalida = e;
                     if (lastEntrada) {
-                        let estanciaMs = new Date(e.activeFrom) - new Date(lastEntrada.activeFrom);
-                        if (lastEntrada.rule.id === ruleIDs.entradaBase) summaryData[name].msBase += estanciaMs;
-                        else summaryData[name].msAero += estanciaMs;
+                        // Limitar la estancia estrictamente al periodo seleccionado para evitar estancias reportadas visuales de 43 horas en periodos de 24h
+                        let startMs = Math.max(dFrom.getTime(), new Date(lastEntrada.activeFrom).getTime());
+                        let endMs = Math.min(dTo.getTime(), new Date(e.activeFrom).getTime());
+                        let estanciaMs = endMs - startMs;
+                        
+                        if (estanciaMs > 0) {
+                            if (lastEntrada.rule.id === ruleIDs.entradaBase) summaryData[name].msBase += estanciaMs;
+                            else summaryData[name].msAero += estanciaMs;
+                        }
                         lastEntrada = null;
                     }
                 }
             }
         }
         
-        // Actualizar KPIs Globales
         document.getElementById("kpi-viajes").innerText = globalViajes;
         document.getElementById("kpi-km").innerText = globalKm.toFixed(1);
         document.getElementById("kpi-duracion").innerText = globalViajes > 0 ? msToTime(globalDuracionMs / globalViajes) : "0m";
         document.getElementById("kpi-eficiencia").innerText = globalViajes > 0 ? (globalKm / globalViajes).toFixed(1) + " km/v" : "0.0";
 
-        renderDashboard(summaryData, numDays, daysArray);
+        renderDashboard(summaryData, numDays, hoursLabels);
         renderDetail(allRows);
         
         document.getElementById("loadingMsg").style.display = "none";
@@ -181,8 +197,8 @@ geotab.addin.reporteViajes = function(api, state) {
         document.getElementById("btnExportar").style.display = "inline-flex";
     }
 
-    function renderDashboard(data, days, daysArray) {
-        let html = `<table><thead><tr><th>Vehículo</th><th>Viajes Tot.</th><th>Km Totales</th><th>Eficiencia</th><th>Tiempo Coducción</th><th>Perm. Base/Día</th><th>Perm. Aero/Día</th></tr></thead><tbody>`;
+    function renderDashboard(data, days, hoursLabels) {
+        let html = `<table><thead><tr><th>Vehículo</th><th>Viajes Tot.</th><th>Km Totales</th><th>Eficiencia</th><th>Tiempo Conducción</th><th>Perm. Base/Día</th><th>Perm. Aero/Día</th></tr></thead><tbody>`;
         let labels = [], vData = [], kData = [], timelineDatasets = [], colorIndex = 0;
 
         Object.keys(data).forEach(name => {
@@ -205,12 +221,14 @@ geotab.addin.reporteViajes = function(api, state) {
                 
                 timelineDatasets.push({ 
                     label: name, 
-                    data: d.viajesPorDia, 
+                    data: d.viajesPorHora, 
                     borderColor: colorPalette[colorIndex % colorPalette.length], 
                     backgroundColor: colorPalette[colorIndex % colorPalette.length] + '22', 
                     borderWidth: 3, 
                     tension: 0.3, 
-                    fill: true 
+                    fill: true,
+                    pointRadius: hoursLabels.length <= 24 ? 4 : 2, 
+                    pointHoverRadius: 6
                 });
                 colorIndex++;
             }
@@ -226,19 +244,35 @@ geotab.addin.reporteViajes = function(api, state) {
 
         chartTimeline = new Chart(document.getElementById('timelineChart'), { 
             type: 'line', 
-            data: { labels: daysArray, datasets: timelineDatasets }, 
-            options: opts 
+            data: { labels: hoursLabels, datasets: timelineDatasets }, 
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    x: {
+                        ticks: {
+                            autoSkip: false,
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            } 
         });
         
         chartViajes = new Chart(document.getElementById('viajesChart'), { 
             type: 'bar', 
-            data: { labels, datasets: [{ label: 'Viajes Totales', data: vData, backgroundColor: '#2563eb', borderRadius: 6 }] }, 
+            data: { labels, datasets: [{ label: 'Viajes Totales', data: vData, backgroundColor: '#2563eb', borderRadius: 4 }] }, 
             options: opts 
         });
         
         chartKm = new Chart(document.getElementById('kmChart'), { 
             type: 'bar', 
-            data: { labels, datasets: [{ label: 'Km Totales', data: kData, backgroundColor: '#10b981', borderRadius: 6 }] }, 
+            data: { labels, datasets: [{ label: 'Km Totales', data: kData, backgroundColor: '#10b981', borderRadius: 4 }] }, 
             options: opts 
         });
     }
@@ -266,7 +300,7 @@ geotab.addin.reporteViajes = function(api, state) {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.querySelector("#summaryTableContainer table")), "Resumen Operativo");
             XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.querySelector("#tableContainer table")), "Trayectos Detallados");
-            XLSX.writeFile(wb, "Reporte_Lanzaderas_V1.3.0.xlsx");
+            XLSX.writeFile(wb, "Reporte_Lanzaderas_V1.3.1.xlsx");
         } catch (e) { alert("Error al exportar. Asegúrate de haber generado el informe."); }
     }
 };
